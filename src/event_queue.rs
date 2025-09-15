@@ -1,47 +1,47 @@
-use crate::{type_traits::*, types::*};
+use crate::types::*;
 use async_priority_queue::PriorityQueue;
 use std::{cmp::Reverse, sync::Arc};
 // use tokio::sync::Mutex;
 
-struct EvntPip<Ft: FloatTrait, EvntTp: EvntTpT>(
-    PriorityQueue<Reverse<Box<dyn EvntT<Ft = Ft, EvntTp = EvntTp>>>>,
+struct EvntPip<TmStmpTp: Ord, EvntTp: EvntTpT>(
+    PriorityQueue<Reverse<Box<dyn EvntT<TmStmpTp = TmStmpTp, EvntTp = EvntTp>>>>,
 );
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT> EvntPip<Ft, EvntTp> {
+impl<TmStmpTp: Ord, EvntTp: EvntTpT> EvntPip<TmStmpTp, EvntTp> {
     fn new() -> Self {
-        EvntPip::<Ft, EvntTp>(PriorityQueue::new())
+        EvntPip::<TmStmpTp, EvntTp>(PriorityQueue::new())
     }
 }
 
-pub struct Sender<Ft: FloatTrait, EvntTp: EvntTpT> {
-    socket: Arc<EvntPip<Ft, EvntTp>>,
+pub struct Sndr<TmStmpTp: Ord, EvntTp: EvntTpT> {
+    socket: Arc<EvntPip<TmStmpTp, EvntTp>>,
 }
 
-pub struct Receiver<Ft: FloatTrait, EvntTp: EvntTpT> {
-    socket: Arc<EvntPip<Ft, EvntTp>>,
+pub struct Rcvr<TmStmpTp: Ord, EvntTp: EvntTpT> {
+    socket: Arc<EvntPip<TmStmpTp, EvntTp>>,
 }
 
-pub fn make_channel<Ft: FloatTrait, EvntTp: EvntTpT>() -> (Sender<Ft, EvntTp>, Receiver<Ft, EvntTp>) {
+pub fn chnl<TmStmpTp: Ord, EvntTp: EvntTpT>() -> (Sndr<TmStmpTp, EvntTp>, Rcvr<TmStmpTp, EvntTp>) {
     let evnt_pip = EvntPip::new();
     let arcd_evnt_pip = Arc::new(evnt_pip);
     (
-        Sender {
+        Sndr {
             socket: arcd_evnt_pip.clone(),
         },
-        Receiver {
+        Rcvr {
             socket: arcd_evnt_pip,
         },
     )
 }
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT> Sender<Ft, EvntTp> {
-    pub async fn send(&self, evnt: Box<dyn EvntT<Ft = Ft, EvntTp = EvntTp>>) {
+impl<TmStmpTp: Ord, EvntTp: EvntTpT> Sndr<TmStmpTp, EvntTp> {
+    pub async fn send(&self, evnt: Box<dyn EvntT<TmStmpTp = TmStmpTp, EvntTp = EvntTp>>) {
         self.socket.as_ref().0.push(Reverse(evnt));
     }
 }
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT> Receiver<Ft, EvntTp> {
-    pub async fn recv(&self) -> Box<dyn EvntT<Ft = Ft, EvntTp = EvntTp>> {
+impl<TmStmpTp: Ord, EvntTp: EvntTpT> Rcvr<TmStmpTp, EvntTp> {
+    pub async fn recv(&self) -> Box<dyn EvntT<TmStmpTp = TmStmpTp, EvntTp = EvntTp>> {
         let Reverse(result) = self.socket.as_ref().0.pop().await;
         result
     }
