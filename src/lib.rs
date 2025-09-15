@@ -1,12 +1,8 @@
-pub mod evnt_que;
-pub mod tp_traits;
+pub mod event_queue;
+pub mod type_traits;
 pub mod types;
-pub mod wdgt_que;
-pub mod wkr_pool;
-
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+pub mod widget_queue;
+pub mod worker_pool;
 
 #[cfg(test)]
 mod tests {

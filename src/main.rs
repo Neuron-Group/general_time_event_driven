@@ -19,11 +19,10 @@ async fn main() {
         let queue_ = arcd_queue.clone();
         for _ in 1..100 {
             println!("{}", queue_.pop().await);
-            // sleep(Duration::from_secs(1)).await;
         }
     }));
 
     for h in handle_vec.into_iter() {
-        h.await;
+        _ = h.await;
     }
 }

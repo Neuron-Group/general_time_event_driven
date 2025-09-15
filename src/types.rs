@@ -1,4 +1,4 @@
-use crate::tp_traits::*;
+use crate::type_traits::*;
 use std::{cmp::Ordering, hash::Hash};
 
 /// 时间戳事件基础Trait
