@@ -10,7 +10,26 @@ pub fn add(left: u64, right: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::{EvntTpT, TimeEvntT, WkrPptyT};
+
     use super::*;
+    use std::sync::Arc;
+    use tokio::sync::{broadcast, mpsc};
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    struct TestEvntTp(String);
+    impl EvntTpT for TestEvntTp {}
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    struct TestWkrPpty(String);
+    impl WkrPptyT for TestWkrPpty {}
+
+    #[derive(Debug, Clone)]
+    struct TestEvnt {
+        time_stamp: f64,
+        evnt_ppt: TestEvntTp,
+        id: u32,
+    }
 
     #[test]
     fn it_works() {

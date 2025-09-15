@@ -5,26 +5,26 @@ use std::{cmp::Ordering, hash::Hash};
 ///
 /// 所有事件和组件的基础Trait，提供时间戳获取功能
 pub trait TimeEvntT: Send + Sync {
-    type Ft: FloatTrait;
-    fn time_stamp(&self) -> Self::Ft;
+    type TmStmpTp: Ord;
+    fn time_stamp(&self) -> Self::TmStmpTp;
 }
 
 // 为时间戳事件实现比较方法
-impl<Ft: FloatTrait> PartialEq for dyn TimeEvntT<Ft = Ft> {
+impl<TmStmpTp: Ord> PartialEq for dyn TimeEvntT<TmStmpTp = TmStmpTp> {
     fn eq(&self, other: &Self) -> bool {
         self.time_stamp() == other.time_stamp()
     }
 }
 
-impl<Ft: FloatTrait> Eq for dyn TimeEvntT<Ft = Ft> {}
+impl<TmStmpTp: Ord> Eq for dyn TimeEvntT<TmStmpTp = TmStmpTp> {}
 
-impl<Ft: FloatTrait> PartialOrd for dyn TimeEvntT<Ft = Ft> {
+impl<TmStmpTp: Ord> PartialOrd for dyn TimeEvntT<TmStmpTp = TmStmpTp> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<Ft: FloatTrait> Ord for dyn TimeEvntT<Ft = Ft> {
+impl<TmStmpTp: Ord> Ord for dyn TimeEvntT<TmStmpTp = TmStmpTp> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.time_stamp().cmp(&other.time_stamp())
     }
@@ -39,25 +39,25 @@ pub trait WdgtT: Send + Sync + TimeEvntT {
     fn get_wkr_ppt(&self) -> Self::WkrPpty;
     fn judge(
         &self,
-        evnt: &BoxdEvnt<Self::Ft, Self::EvntTp>,
-    ) -> RtStt<Self::Ft, Self::EvntTp, Self::WkrPpty>;
+        evnt: &BoxdEvnt<Self::TmStmpTp, Self::EvntTp>,
+    ) -> RtStt<Self::TmStmpTp, Self::EvntTp, Self::WkrPpty>;
 }
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT, WkrPpty: WkrPptyT> PartialEq for dyn WdgtT<Ft = Ft, EvntTp = EvntTp, WkrPpty = WkrPpty> {
+impl<TmStmpTp: Ord, EvntTp: EvntTpT, WkrPpty: WkrPptyT> PartialEq for dyn WdgtT<TmStmpTp = TmStmpTp, EvntTp = EvntTp, WkrPpty = WkrPpty> {
     fn eq(&self, other: &Self) -> bool {
         self.time_stamp() == other.time_stamp()
     }
 }
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT, WkrPpty: WkrPptyT> Eq for dyn WdgtT<Ft = Ft, EvntTp = EvntTp, WkrPpty = WkrPpty> {}
+impl<TmStmpTp: Ord, EvntTp: EvntTpT, WkrPpty: WkrPptyT> Eq for dyn WdgtT<TmStmpTp = TmStmpTp, EvntTp = EvntTp, WkrPpty = WkrPpty> {}
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT, WkrPpty: WkrPptyT> PartialOrd for dyn WdgtT<Ft = Ft, EvntTp = EvntTp, WkrPpty = WkrPpty> {
+impl<TmStmpTp: Ord, EvntTp: EvntTpT, WkrPpty: WkrPptyT> PartialOrd for dyn WdgtT<TmStmpTp = TmStmpTp, EvntTp = EvntTp, WkrPpty = WkrPpty> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT, WkrPpty: WkrPptyT> Ord for dyn WdgtT<Ft = Ft, EvntTp = EvntTp, WkrPpty = WkrPpty> {
+impl<TmStmpTp: Ord, EvntTp: EvntTpT, WkrPpty: WkrPptyT> Ord for dyn WdgtT<TmStmpTp = TmStmpTp, EvntTp = EvntTp, WkrPpty = WkrPpty> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.time_stamp().cmp(&other.time_stamp())
     }
@@ -70,21 +70,21 @@ pub trait EvntT: Send + Sync + TimeEvntT {
     type EvntTp: EvntTpT;
     fn get_evnt_ppt(&self) -> Self::EvntTp;
 }
-impl<Ft: FloatTrait, EvntTp: EvntTpT> PartialEq for dyn EvntT<Ft = Ft, EvntTp = EvntTp> {
+impl<TmStmpTp: Ord, EvntTp: EvntTpT> PartialEq for dyn EvntT<TmStmpTp = TmStmpTp, EvntTp = EvntTp> {
     fn eq(&self, other: &Self) -> bool {
         self.time_stamp() == other.time_stamp()
     }
 }
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT> Eq for dyn EvntT<Ft = Ft, EvntTp = EvntTp> {}
+impl<TmStmpTp: Ord, EvntTp: EvntTpT> Eq for dyn EvntT<TmStmpTp = TmStmpTp, EvntTp = EvntTp> {}
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT> PartialOrd for dyn EvntT<Ft = Ft, EvntTp = EvntTp> {
+impl<TmStmpTp: Ord, EvntTp: EvntTpT> PartialOrd for dyn EvntT<TmStmpTp = TmStmpTp, EvntTp = EvntTp> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT> Ord for dyn EvntT<Ft = Ft, EvntTp = EvntTp> {
+impl<TmStmpTp: Ord, EvntTp: EvntTpT> Ord for dyn EvntT<TmStmpTp = TmStmpTp, EvntTp = EvntTp> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.time_stamp().cmp(&other.time_stamp())
     }
@@ -98,8 +98,8 @@ pub trait RtvT: Send + Sync {}
 /// Box智能指针包装的返回值类型
 pub type BoxdRtvt = Box<dyn RtvT>;
 
-pub enum RtStt<Ft: FloatTrait, EvntTp: EvntTpT, WkrPpty: WkrPptyT> {
-    Pending(BoxdWdgt<Ft, EvntTp, WkrPpty>, RtEvnt),
+pub enum RtStt<TmStmpTp: Ord, EvntTp: EvntTpT, WkrPpty: WkrPptyT> {
+    Pending(BoxdWdgt<TmStmpTp, EvntTp, WkrPpty>, RtEvnt),
     Ready(RtEvnt),
 }
 
@@ -123,9 +123,9 @@ pub trait EvntTpT {}
 /// 工作属性的标记Trait，要求实现基本的哈希和比较功能
 pub trait WkrPptyT: Eq + Hash + Clone + Send + Sync {}
 
-pub type BoxdEvnt<Ft, EvntTp> = Box<dyn EvntT<Ft = Ft, EvntTp = EvntTp>>;
-pub type BoxdWdgt<Ft, EvntTp, WkrPpty> =
-    Box<dyn WdgtT<Ft = Ft, EvntTp = EvntTp, WkrPpty = WkrPpty>>;
+pub type BoxdEvnt<TmStmpTp, EvntTp> = Box<dyn EvntT<TmStmpTp = TmStmpTp, EvntTp = EvntTp>>;
+pub type BoxdWdgt<TmStmpTp, EvntTp, WkrPpty> =
+    Box<dyn WdgtT<TmStmpTp = TmStmpTp, EvntTp = EvntTp, WkrPpty = WkrPpty>>;
 
 /// 工作模式枚举
 ///

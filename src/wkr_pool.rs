@@ -1,4 +1,4 @@
-use crate::{evnt_que, tp_traits::*, types::*, wdgt_que::*};
+use crate::{evnt_que, types::*, wdgt_que::*};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::{
@@ -8,21 +8,22 @@ use tokio::{
 
 const BFFR_LEN: usize = 10000;
 
-struct WkrHndl<Ft: FloatTrait, EvntTp: EvntTpT, WkrPpty: WkrPptyT> {
-    wdgt_sndr: mpsc::Sender<Box<dyn WdgtT<Ft = Ft, EvntTp = EvntTp, WkrPpty = WkrPpty>>>,
+struct WkrHndl<TmStmpTp: Ord, EvntTp: EvntTpT, WkrPpty: WkrPptyT> {
+    wdgt_sndr:
+        mpsc::Sender<Box<dyn WdgtT<TmStmpTp = TmStmpTp, EvntTp = EvntTp, WkrPpty = WkrPpty>>>,
     prcs_hndl: JoinHandle<()>,
     // evnt_slctr: Box<dyn FnOnce(&EvntTp) -> bool + Send + Sync>,
 }
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
-    WkrHndl<Ft, EvntTp, WkrPpty>
+impl<TmStmpTp: Ord + 'static, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
+    WkrHndl<TmStmpTp, EvntTp, WkrPpty>
 {
     fn new(
-        mut evnt_rcvr: broadcast::Receiver<Arc<BoxdEvnt<Ft, EvntTp>>>,
-        // wdgt_rcvr: mpsc::Receiver<BoxdWdgt<Ft, EvntTp, WkrPpty>>,
+        mut evnt_rcvr: broadcast::Receiver<Arc<BoxdEvnt<TmStmpTp, EvntTp>>>,
+        // wdgt_rcvr: mpsc::Receiver<BoxdWdgt<TmStmpTp, EvntTp, WkrPpty>>,
         evnt_wkr_mod: WkrMod,
         rt_evnt_sndr: mpsc::Sender<RtEvnt>,
-        rt_wdgt_sndr_pre: mpsc::Sender<BoxdWdgt<Ft, EvntTp, WkrPpty>>,
+        rt_wdgt_sndr_pre: mpsc::Sender<BoxdWdgt<TmStmpTp, EvntTp, WkrPpty>>,
         evnt_slctr: Box<dyn Fn(&EvntTp) -> bool + Send + Sync>,
     ) -> Self {
         let (wdgt_sndr, mut wdgt_rcvr) = mpsc::channel(BFFR_LEN);
@@ -86,23 +87,23 @@ impl<Ft: FloatTrait, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
 /// 负责协调事件分发、组件处理和结果返回，内部包含多个工作线程和路由机制
 ///
 /// # 泛型参数
-/// * `Ft` - 浮点类型，需实现FloatTrait
+/// * `TmStmpTp` - 浮点类型，需实现Ord
 /// * `EvntTp` - 事件类型，需实现EvntTpT
 /// * `WkrPpty` - 工作属性类型，需实现WkrPptyT
-pub struct WkrPool<Ft: FloatTrait, EvntTp: EvntTpT, WkrPpty: WkrPptyT> {
+pub struct WkrPool<TmStmpTp: Ord, EvntTp: EvntTpT, WkrPpty: WkrPptyT> {
     // 优先队列线程
     ipt_wkr_hndl: JoinHandle<()>,
-    _evnt_brdcst_sndr: broadcast::Sender<Arc<BoxdEvnt<Ft, EvntTp>>>,
+    _evnt_brdcst_sndr: broadcast::Sender<Arc<BoxdEvnt<TmStmpTp, EvntTp>>>,
 
     // 哈希表路由线程
     wdgt_rotr_hndl: JoinHandle<()>,
 
     // 预留
-    _rt_wdgt_sndr_pre: mpsc::Sender<BoxdWdgt<Ft, EvntTp, WkrPpty>>,
+    _rt_wdgt_sndr_pre: mpsc::Sender<BoxdWdgt<TmStmpTp, EvntTp, WkrPpty>>,
 }
 
-impl<Ft: FloatTrait, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
-    WkrPool<Ft, EvntTp, WkrPpty>
+impl<TmStmpTp: Ord + 'static, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
+    WkrPool<TmStmpTp, EvntTp, WkrPpty>
 {
     /// 构建工作池实例
     ///
@@ -115,7 +116,11 @@ impl<Ft: FloatTrait, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
     /// 元组：(事件发送器, 运行时事件接收器, WkrPool实例)
     pub fn build(
         wkr_ppty: Vec<(WkrPpty, WkrMod, Box<dyn Fn(&EvntTp) -> bool + Send + Sync>)>,
-    ) -> (evnt_que::Sndr<Ft, EvntTp>, mpsc::Receiver<RtEvnt>, Self) {
+    ) -> (
+        evnt_que::Sndr<TmStmpTp, EvntTp>,
+        mpsc::Receiver<RtEvnt>,
+        Self,
+    ) {
         let (evnt_pipe_sndr, evnt_pipe_rcvr) = evnt_que::chnl();
         let (evnt_tx, _) = broadcast::channel(BFFR_LEN);
         let (rt_evnt_sndr, rt_evnt_rcvr) = mpsc::channel(BFFR_LEN);
@@ -134,7 +139,7 @@ impl<Ft: FloatTrait, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
                     ),
                 )
             })
-            .collect::<HashMap<WkrPpty, WkrHndl<Ft, EvntTp, WkrPpty>>>();
+            .collect::<HashMap<WkrPpty, WkrHndl<TmStmpTp, EvntTp, WkrPpty>>>();
 
         let evnt_brdcst_sndr = evnt_tx.clone();
         (
