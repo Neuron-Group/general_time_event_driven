@@ -39,7 +39,7 @@ impl<Ft: FloatTrait, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
                             WkrMod::PrcsOnce => {
                                 if !wdgt_heap.is_empty()
                                     && let Some(wdgt) = wdgt_heap.peek()
-                                    && wdgt.time_stamp() < evnt.time_stamp()
+                                    && wdgt.time_stamp() <= evnt.time_stamp()
                                 {
                                     let wdgt = wdgt_heap.pop().unwrap();
                                     let rt_stt = wdgt.judge(evnt.as_ref());
@@ -57,7 +57,7 @@ impl<Ft: FloatTrait, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
                             WkrMod::PrcsMltiTimes => {
                                 while !wdgt_heap.is_empty() {
                                     if let Some(wdgt) = wdgt_heap.peek()
-                                        && wdgt.time_stamp() < evnt.time_stamp()
+                                        && wdgt.time_stamp() <= evnt.time_stamp()
                                     {
                                         let wdgt = wdgt_heap.pop().unwrap();
                                         let rt_stt = wdgt.judge(evnt.as_ref());
@@ -81,6 +81,14 @@ impl<Ft: FloatTrait, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
     }
 }
 
+/// 工作池结构体，管理事件处理和组件路由
+///
+/// 负责协调事件分发、组件处理和结果返回，内部包含多个工作线程和路由机制
+///
+/// # 泛型参数
+/// * `Ft` - 浮点类型，需实现FloatTrait
+/// * `EvntTp` - 事件类型，需实现EvntTpT
+/// * `WkrPpty` - 工作属性类型，需实现WkrPptyT
 pub struct WkrPool<Ft: FloatTrait, EvntTp: EvntTpT, WkrPpty: WkrPptyT> {
     // 优先队列线程
     ipt_wkr_hndl: JoinHandle<()>,
@@ -96,6 +104,15 @@ pub struct WkrPool<Ft: FloatTrait, EvntTp: EvntTpT, WkrPpty: WkrPptyT> {
 impl<Ft: FloatTrait, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
     WkrPool<Ft, EvntTp, WkrPpty>
 {
+    /// 构建工作池实例
+    ///
+    /// 创建事件通道、广播器和工作线程，返回发送器、接收器和工作池实例
+    ///
+    /// # 参数
+    /// * `wkr_ppty` - 工作属性列表，包含工作属性、工作模式和事件选择器
+    ///
+    /// # 返回值
+    /// 元组：(事件发送器, 运行时事件接收器, WkrPool实例)
     pub fn build(
         wkr_ppty: Vec<(WkrPpty, WkrMod, Box<dyn Fn(&EvntTp) -> bool + Send + Sync>)>,
     ) -> (evnt_que::Sndr<Ft, EvntTp>, mpsc::Receiver<RtEvnt>, Self) {
