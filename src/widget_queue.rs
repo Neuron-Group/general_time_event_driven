@@ -5,10 +5,15 @@ pub struct WidgetHeap<
     TimestampType: Ord,
     EventType: EventTypeTrait,
     WorkerProperty: WorkerPropertyTrait,
->(BinaryHeap<Reverse<BoxedWidget<TimestampType, EventType, WorkerProperty>>>);
+    ReturnType: ReturnTypeTrait,
+>(BinaryHeap<Reverse<BoxedWidget<TimestampType, EventType, WorkerProperty, ReturnType>>>);
 
-impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerPropertyTrait>
-    WidgetHeap<TimestampType, EventType, WorkerProperty>
+impl<
+    TimestampType: Ord,
+    EventType: EventTypeTrait,
+    WorkerProperty: WorkerPropertyTrait,
+    ReturnType: ReturnTypeTrait,
+> WidgetHeap<TimestampType, EventType, WorkerProperty, ReturnType>
 {
     pub fn new() -> Self {
         Self(BinaryHeap::new())
@@ -21,6 +26,7 @@ impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerProper
                     TimestampType = TimestampType,
                     EventType = EventType,
                     WorkerProperty = WorkerProperty,
+                    ReturnType = ReturnType,
                 >,
         >,
     ) {
@@ -35,6 +41,7 @@ impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerProper
                     TimestampType = TimestampType,
                     EventType = EventType,
                     WorkerProperty = WorkerProperty,
+                    ReturnType = ReturnType,
                 >,
         >,
     > {
@@ -48,6 +55,7 @@ impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerProper
             TimestampType = TimestampType,
             EventType = EventType,
             WorkerProperty = WorkerProperty,
+            ReturnType = ReturnType,
         >,
     > {
         self.0.peek().map(|v| &*v.0)
@@ -58,8 +66,12 @@ impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerProper
     }
 }
 
-impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerPropertyTrait> Default
-    for WidgetHeap<TimestampType, EventType, WorkerProperty>
+impl<
+    TimestampType: Ord,
+    EventType: EventTypeTrait,
+    WorkerProperty: WorkerPropertyTrait,
+    ReturnType: ReturnTypeTrait,
+> Default for WidgetHeap<TimestampType, EventType, WorkerProperty, ReturnType>
 {
     fn default() -> Self {
         Self::new()

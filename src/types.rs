@@ -35,15 +35,25 @@ impl<TimestampType: Ord> Ord for dyn TimeEventTrait<TimestampType = TimestampTyp
 pub trait WidgetTrait: Send + Sync + TimeEventTrait {
     type EventType: EventTypeTrait;
     type WorkerProperty: WorkerPropertyTrait;
+    type ReturnType: ReturnTypeTrait;
     fn get_worker_property(&self) -> Self::WorkerProperty;
-    fn judge(&mut self, event: &BoxedEvent<Self::TimestampType, Self::EventType>) -> RuntimeState;
+    fn judge(
+        &mut self,
+        event: &BoxedEvent<Self::TimestampType, Self::EventType>,
+    ) -> RuntimeState<Self::ReturnType>;
 }
 
-impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerPropertyTrait> PartialEq
+impl<
+    TimestampType: Ord,
+    EventType: EventTypeTrait,
+    WorkerProperty: WorkerPropertyTrait,
+    ReturnType: ReturnTypeTrait,
+> PartialEq
     for dyn WidgetTrait<
             TimestampType = TimestampType,
             EventType = EventType,
             WorkerProperty = WorkerProperty,
+            ReturnType = ReturnType,
         >
 {
     fn eq(&self, other: &Self) -> bool {
@@ -51,20 +61,32 @@ impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerProper
     }
 }
 
-impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerPropertyTrait> Eq
+impl<
+    TimestampType: Ord,
+    EventType: EventTypeTrait,
+    WorkerProperty: WorkerPropertyTrait,
+    ReturnType: ReturnTypeTrait,
+> Eq
     for dyn WidgetTrait<
             TimestampType = TimestampType,
             EventType = EventType,
             WorkerProperty = WorkerProperty,
+            ReturnType = ReturnType,
         >
 {
 }
 
-impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerPropertyTrait> PartialOrd
+impl<
+    TimestampType: Ord,
+    EventType: EventTypeTrait,
+    WorkerProperty: WorkerPropertyTrait,
+    ReturnType: ReturnTypeTrait,
+> PartialOrd
     for dyn WidgetTrait<
             TimestampType = TimestampType,
             EventType = EventType,
             WorkerProperty = WorkerProperty,
+            ReturnType = ReturnType,
         >
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -72,11 +94,17 @@ impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerProper
     }
 }
 
-impl<TimestampType: Ord, EventType: EventTypeTrait, WorkerProperty: WorkerPropertyTrait> Ord
+impl<
+    TimestampType: Ord,
+    EventType: EventTypeTrait,
+    WorkerProperty: WorkerPropertyTrait,
+    ReturnType: ReturnTypeTrait,
+> Ord
     for dyn WidgetTrait<
             TimestampType = TimestampType,
             EventType = EventType,
             WorkerProperty = WorkerProperty,
+            ReturnType = ReturnType,
         >
 {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -116,20 +144,20 @@ impl<TimestampType: Ord, EventType: EventTypeTrait> Ord for dyn EventTrait<Times
 /// 作为通用返回值的标记Trait
 pub trait ReturnTypeTrait: Send + Sync {}
 
-/// Box智能指针包装的返回值类型
-pub type BoxedReturnType = Box<dyn ReturnTypeTrait>;
+/// Box智能指针包装的静态返回值类型
+pub type BoxedReturnType<ReturnType: ReturnTypeTrait> = Box<ReturnType>;
 
-pub enum RuntimeState {
-    Pending(RuntimeEvent),
-    Ready(RuntimeEvent),
+pub enum RuntimeState<ReturnType: ReturnTypeTrait> {
+    Pending(RuntimeEvent<ReturnType>),
+    Ready(RuntimeEvent<ReturnType>),
 }
 
 /// 运行时事件枚举
 ///
 /// 表示处理后的结果事件
-pub enum RuntimeEvent {
+pub enum RuntimeEvent<ReturnType: ReturnTypeTrait> {
     /// 包含返回值的事件
-    Some(BoxedReturnType),
+    Some(BoxedReturnType<ReturnType>),
     /// 错过处理的事件
     Missed,
 }
@@ -146,11 +174,12 @@ pub trait WorkerPropertyTrait: Eq + Hash + Clone + Send + Sync {}
 
 pub type BoxedEvent<TimestampType, EventType> =
     Box<dyn EventTrait<TimestampType = TimestampType, EventType = EventType>>;
-pub type BoxedWidget<TimestampType, EventType, WorkerProperty> = Box<
+pub type BoxedWidget<TimestampType, EventType, WorkerProperty, ReturnType> = Box<
     dyn WidgetTrait<
             TimestampType = TimestampType,
             EventType = EventType,
             WorkerProperty = WorkerProperty,
+            ReturnType = ReturnType,
         >,
 >;
 
