@@ -1,5 +1,5 @@
 pub mod event_queue;
-pub mod type_traits;
+
 pub mod types;
 pub mod widget_queue;
 pub mod worker_pool;
@@ -25,11 +25,5 @@ mod tests {
         time_stamp: f64,
         evnt_ppt: TestEvntTp,
         id: u32,
-    }
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
     }
 }

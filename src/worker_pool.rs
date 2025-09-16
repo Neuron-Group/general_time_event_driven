@@ -42,12 +42,12 @@ impl<TmStmpTp: Ord + 'static, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'st
                                     && let Some(wdgt) = wdgt_heap.peek()
                                     && wdgt.time_stamp() <= evnt.time_stamp()
                                 {
-                                    let wdgt = wdgt_heap.pop().unwrap();
+                                    let mut wdgt = wdgt_heap.pop().unwrap();
                                     let rt_stt = wdgt.judge(evnt.as_ref());
                                     match rt_stt {
-                                        RtStt::Pending(boxd_wdgt, rt_evnt) => {
+                                        RtStt::Pending(rt_evnt) => {
                                             let _ = rt_evnt_sndr.send(rt_evnt).await;
-                                            let _ = rt_wdgt_sndr_pre.send(boxd_wdgt).await;
+                                            let _ = rt_wdgt_sndr_pre.send(wdgt).await;
                                         }
                                         RtStt::Ready(rt_evnt) => {
                                             let _ = rt_evnt_sndr.send(rt_evnt).await;
@@ -60,12 +60,12 @@ impl<TmStmpTp: Ord + 'static, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'st
                                     if let Some(wdgt) = wdgt_heap.peek()
                                         && wdgt.time_stamp() <= evnt.time_stamp()
                                     {
-                                        let wdgt = wdgt_heap.pop().unwrap();
+                                        let mut wdgt = wdgt_heap.pop().unwrap();
                                         let rt_stt = wdgt.judge(evnt.as_ref());
                                         match rt_stt {
-                                            RtStt::Pending(boxd_wdgt, rt_evnt) => {
+                                            RtStt::Pending(rt_evnt) => {
                                                 let _ = rt_evnt_sndr.send(rt_evnt).await;
-                                                let _ = rt_wdgt_sndr_pre.send(boxd_wdgt).await;
+                                                let _ = rt_wdgt_sndr_pre.send(wdgt).await;
                                             }
                                             RtStt::Ready(rt_evnt) => {
                                                 let _ = rt_evnt_sndr.send(rt_evnt).await;
@@ -116,6 +116,7 @@ impl<TmStmpTp: Ord + 'static, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'st
     /// 元组：(事件发送器, 运行时事件接收器, WkrPool实例)
     pub fn build(
         wkr_ppty: Vec<(WkrPpty, WkrMod, Box<dyn Fn(&EvntTp) -> bool + Send + Sync>)>,
+        wdgts: Vec<BoxdWdgt<TmStmpTp, EvntTp, WkrPpty>>,
     ) -> (
         event_queue::Sndr<TmStmpTp, EvntTp>,
         mpsc::Receiver<RtEvnt>,
@@ -142,31 +143,38 @@ impl<TmStmpTp: Ord + 'static, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'st
             .collect::<HashMap<WkrPpty, WkrHndl<TmStmpTp, EvntTp, WkrPpty>>>();
 
         let evnt_brdcst_sndr = evnt_tx.clone();
+
+        let ipt_wkr_hndl = tokio::spawn(async move {
+            loop {
+                let evnt = evnt_pipe_rcvr.recv().await;
+                if evnt_tx.send(Arc::new(evnt)).is_err() {
+                    break;
+                }
+            }
+        });
+
+        let wdgt_rotr_hndl = tokio::spawn(async move {
+            loop {
+                let wdgt = rt_wdgt_rcvr_pre.recv().await;
+                if let Some(wdgt) = wdgt
+                    && let Some(wkr_hndl) = wkrs_tabl.get(&wdgt.get_wkr_ppt())
+                    && wkr_hndl.wdgt_sndr.send(wdgt).await.is_err()
+                {
+                    break;
+                }
+            }
+        });
+
+        wdgts
+            .into_iter()
+            .for_each(|e| rt_wdgt_sndr_pre.blocking_send(e).unwrap());
+
         (
             evnt_pipe_sndr,
             rt_evnt_rcvr,
             Self {
-                ipt_wkr_hndl: tokio::spawn(async move {
-                    loop {
-                        let evnt = evnt_pipe_rcvr.recv().await;
-                        if evnt_tx.send(Arc::new(evnt)).is_err() {
-                            break;
-                        }
-                    }
-                }),
-
-                wdgt_rotr_hndl: tokio::spawn(async move {
-                    loop {
-                        let wdgt = rt_wdgt_rcvr_pre.recv().await;
-                        if let Some(wdgt) = wdgt
-                            && let Some(wkr_hndl) = wkrs_tabl.get(&wdgt.get_wkr_ppt())
-                            && wkr_hndl.wdgt_sndr.send(wdgt).await.is_err()
-                        {
-                            break;
-                        }
-                    }
-                }),
-
+                ipt_wkr_hndl,
+                wdgt_rotr_hndl,
                 _evnt_brdcst_sndr: evnt_brdcst_sndr,
                 _rt_wdgt_sndr_pre: rt_wdgt_sndr_pre,
             },

@@ -1,4 +1,3 @@
-use crate::type_traits::*;
 use std::{cmp::Ordering, hash::Hash};
 
 /// 时间戳事件基础Trait
@@ -37,10 +36,7 @@ pub trait WdgtT: Send + Sync + TimeEvntT {
     type EvntTp: EvntTpT;
     type WkrPpty: WkrPptyT;
     fn get_wkr_ppt(&self) -> Self::WkrPpty;
-    fn judge(
-        &self,
-        evnt: &BoxdEvnt<Self::TmStmpTp, Self::EvntTp>,
-    ) -> RtStt<Self::TmStmpTp, Self::EvntTp, Self::WkrPpty>;
+    fn judge(&mut self, evnt: &BoxdEvnt<Self::TmStmpTp, Self::EvntTp>) -> RtStt;
 }
 
 impl<TmStmpTp: Ord, EvntTp: EvntTpT, WkrPpty: WkrPptyT> PartialEq for dyn WdgtT<TmStmpTp = TmStmpTp, EvntTp = EvntTp, WkrPpty = WkrPpty> {
@@ -98,8 +94,8 @@ pub trait RtvT: Send + Sync {}
 /// Box智能指针包装的返回值类型
 pub type BoxdRtvt = Box<dyn RtvT>;
 
-pub enum RtStt<TmStmpTp: Ord, EvntTp: EvntTpT, WkrPpty: WkrPptyT> {
-    Pending(BoxdWdgt<TmStmpTp, EvntTp, WkrPpty>, RtEvnt),
+pub enum RtStt {
+    Pending(RtEvnt),
     Ready(RtEvnt),
 }
 
