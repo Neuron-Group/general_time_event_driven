@@ -4,9 +4,9 @@ pub mod widget_queue;
 pub mod worker_pool;
 
 #[cfg(test)]
+#[allow(unused)]
 mod tests {
     use crate::{types::*, worker_pool::*};
-
     use super::*;
     use std::{any::Any, sync::Arc};
     use tokio::sync::{broadcast, mpsc};
