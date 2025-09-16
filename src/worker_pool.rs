@@ -144,7 +144,7 @@ impl<
     ///
     /// # 返回值
     /// 元组：(事件发送器, 运行时事件接收器, WorkerPool实例)
-    pub fn build(
+    pub async fn build(
         worker_property: Vec<(
             WorkerProperty,
             WorkerMode,
@@ -203,9 +203,9 @@ impl<
             }
         });
 
-        widgets
-            .into_iter()
-            .for_each(|e| runtime_widget_sender_pre.blocking_send(e).unwrap());
+        for e in widgets.into_iter() {
+            runtime_widget_sender_pre.send(e).await.unwrap()
+        }
 
         (
             event_pipe_sender,

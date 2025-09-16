@@ -6,8 +6,8 @@ pub mod worker_pool;
 #[cfg(test)]
 #[allow(unused)]
 mod tests {
-    use crate::{types::*, worker_pool::*};
     use super::*;
+    use crate::{types::*, worker_pool::*};
     use std::{any::Any, sync::Arc};
     use tokio::sync::{broadcast, mpsc};
 
@@ -28,6 +28,7 @@ mod tests {
     }
 
     // 创建判定类型
+    #[derive(Debug)]
     pub enum JudgeType {
         CriticalPerfect,
         Perfect,
@@ -93,19 +94,19 @@ mod tests {
                 return RuntimeState::Ready(RuntimeEvent::Missed);
             }
             let relative_time = self.time_stamp + 20 - event.time_stamp();
-            if relative_time >= -1 && relative_time <= 1 {
+            if (-1..=1).contains(&relative_time) {
                 return RuntimeState::Ready(RuntimeEvent::Some(Box::new(RtV {
                     id: self.id,
                     judge_type: JudgeType::CriticalPerfect,
                 })));
             }
-            if relative_time >= -5 && relative_time <= 5 {
+            if (-5..=5).contains(&relative_time) {
                 return RuntimeState::Ready(RuntimeEvent::Some(Box::new(RtV {
                     id: self.id,
                     judge_type: JudgeType::Perfect,
                 })));
             }
-            if relative_time >= -20 && relative_time <= 20 {
+            if (-20..=20).contains(&relative_time) {
                 return RuntimeState::Ready(RuntimeEvent::Some(Box::new(RtV {
                     id: self.id,
                     judge_type: JudgeType::Good,
@@ -131,9 +132,54 @@ mod tests {
         let result = widget.judge(&event_boxed);
         if let RuntimeState::Ready(RuntimeEvent::Some(rtv)) = result {
             // let rtv = rtv.judge_type;
+            println!("{:#?}", rtv.judge_type);
             matches!(rtv.judge_type, JudgeType::Perfect);
         } else {
             panic!("Expected Perfect result");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_worker_pool_process() {
+        // 创建工作属性配置：Worker0使用ProcessOnce模式，处理Wkr0Only事件
+        let boxed_closure: Box<dyn Fn(&TestEvntTp) -> bool + Send + Sync> =
+            Box::new(|event_type: &TestEvntTp| matches!(event_type, TestEvntTp::Wkr0Only));
+        let worker_properties = vec![(TestWkrPpty::Wkr0, WorkerMode::ProcessOnce, boxed_closure)];
+
+        // 创建测试组件
+        let widgets: Vec<
+            Box<
+                dyn WidgetTrait<
+                        TimestampType = i64,
+                        EventType = TestEvntTp,
+                        WorkerProperty = TestWkrPpty,
+                        ReturnType = RtV,
+                    >,
+            >,
+        > = vec![Box::new(TestWdgt {
+            time_stamp: 100,
+            wdgt_ppty: TestWkrPpty::Wkr0,
+            id: 1,
+        })];
+
+        // 构建WorkerPool
+        let (event_sender, mut runtime_event_receiver, _worker_pool) =
+            WorkerPool::<i64, TestEvntTp, TestWkrPpty, RtV>::build(worker_properties, widgets)
+                .await;
+
+        // 发送测试事件
+        let test_event: Box<dyn EventTrait<EventType = TestEvntTp, TimestampType = i64> + 'static> =
+            Box::new(TestEvnt {
+                time_stamp: 120,
+                evnt_ppty: TestEvntTp::Wkr0Only,
+            });
+        event_sender.send(test_event).await;
+
+        // 验证处理结果
+        if let Some(RuntimeEvent::Some(result)) = runtime_event_receiver.recv().await {
+            assert!(matches!(result.judge_type, JudgeType::CriticalPerfect));
+        } else {
+            panic!("WorkerPool未正确处理事件");
         }
     }
 }
