@@ -107,7 +107,7 @@ impl<
 /// 负责协调事件分发、组件处理和结果返回，内部包含多个工作线程和路由机制
 ///
 /// # 泛型参数
-/// * `TimestampType` - 浮点类型，需实现Ord
+/// * `TimestampType` - 需实现Ord
 /// * `EventType` - 事件类型，需实现EventTypeTrait
 /// * `WorkerProperty` - 工作属性类型，需实现WorkerPropertyTrait
 pub struct WorkerPool<
