@@ -3,45 +3,55 @@ use async_priority_queue::PriorityQueue;
 use std::{cmp::Reverse, sync::Arc};
 // use tokio::sync::Mutex;
 
-struct EvntPip<TmStmpTp: Ord, EvntTp: EvntTpT>(
-    PriorityQueue<Reverse<Box<dyn EvntT<TmStmpTp = TmStmpTp, EvntTp = EvntTp>>>>,
+struct EventPipe<TimestampType: Ord, EventType: EventTypeTrait>(
+    PriorityQueue<
+        Reverse<Box<dyn EventTrait<TimestampType = TimestampType, EventType = EventType>>>,
+    >,
 );
 
-impl<TmStmpTp: Ord, EvntTp: EvntTpT> EvntPip<TmStmpTp, EvntTp> {
+impl<TimestampType: Ord, EventType: EventTypeTrait> EventPipe<TimestampType, EventType> {
     fn new() -> Self {
-        EvntPip::<TmStmpTp, EvntTp>(PriorityQueue::new())
+        EventPipe::<TimestampType, EventType>(PriorityQueue::new())
     }
 }
 
-pub struct Sndr<TmStmpTp: Ord, EvntTp: EvntTpT> {
-    socket: Arc<EvntPip<TmStmpTp, EvntTp>>,
+pub struct Sender<TimestampType: Ord, EventType: EventTypeTrait> {
+    socket: Arc<EventPipe<TimestampType, EventType>>,
 }
 
-pub struct Rcvr<TmStmpTp: Ord, EvntTp: EvntTpT> {
-    socket: Arc<EvntPip<TmStmpTp, EvntTp>>,
+pub struct Receiver<TimestampType: Ord, EventType: EventTypeTrait> {
+    socket: Arc<EventPipe<TimestampType, EventType>>,
 }
 
-pub fn chnl<TmStmpTp: Ord, EvntTp: EvntTpT>() -> (Sndr<TmStmpTp, EvntTp>, Rcvr<TmStmpTp, EvntTp>) {
-    let evnt_pip = EvntPip::new();
-    let arcd_evnt_pip = Arc::new(evnt_pip);
+pub fn channel<TimestampType: Ord, EventType: EventTypeTrait>() -> (
+    Sender<TimestampType, EventType>,
+    Receiver<TimestampType, EventType>,
+) {
+    let event_pipe = EventPipe::new();
+    let arc_event_pipe = Arc::new(event_pipe);
     (
-        Sndr {
-            socket: arcd_evnt_pip.clone(),
+        Sender {
+            socket: arc_event_pipe.clone(),
         },
-        Rcvr {
-            socket: arcd_evnt_pip,
+        Receiver {
+            socket: arc_event_pipe,
         },
     )
 }
 
-impl<TmStmpTp: Ord, EvntTp: EvntTpT> Sndr<TmStmpTp, EvntTp> {
-    pub async fn send(&self, evnt: Box<dyn EvntT<TmStmpTp = TmStmpTp, EvntTp = EvntTp>>) {
-        self.socket.as_ref().0.push(Reverse(evnt));
+impl<TimestampType: Ord, EventType: EventTypeTrait> Sender<TimestampType, EventType> {
+    pub async fn send(
+        &self,
+        event: Box<dyn EventTrait<TimestampType = TimestampType, EventType = EventType>>,
+    ) {
+        self.socket.as_ref().0.push(Reverse(event));
     }
 }
 
-impl<TmStmpTp: Ord, EvntTp: EvntTpT> Rcvr<TmStmpTp, EvntTp> {
-    pub async fn recv(&self) -> Box<dyn EvntT<TmStmpTp = TmStmpTp, EvntTp = EvntTp>> {
+impl<TimestampType: Ord, EventType: EventTypeTrait> Receiver<TimestampType, EventType> {
+    pub async fn recv(
+        &self,
+    ) -> Box<dyn EventTrait<TimestampType = TimestampType, EventType = EventType>> {
         let Reverse(result) = self.socket.as_ref().0.pop().await;
         result
     }

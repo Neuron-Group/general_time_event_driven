@@ -6,69 +6,86 @@ use tokio::{
     task::JoinHandle,
 };
 
-const BFFR_LEN: usize = 10000;
+const BUFFER_LENGTH: usize = 10000;
 
-struct WkrHndl<TmStmpTp: Ord, EvntTp: EvntTpT, WkrPpty: WkrPptyT> {
-    wdgt_sndr:
-        mpsc::Sender<Box<dyn WdgtT<TmStmpTp = TmStmpTp, EvntTp = EvntTp, WkrPpty = WkrPpty>>>,
-    prcs_hndl: JoinHandle<()>,
-    // evnt_slctr: Box<dyn FnOnce(&EvntTp) -> bool + Send + Sync>,
+struct WorkerHandle<
+    TimestampType: Ord,
+    EventType: EventTypeTrait,
+    WorkerProperty: WorkerPropertyTrait,
+> {
+    widget_sender: mpsc::Sender<
+        Box<
+            dyn WidgetTrait<
+                    TimestampType = TimestampType,
+                    EventType = EventType,
+                    WorkerProperty = WorkerProperty,
+                >,
+        >,
+    >,
+    process_handle: JoinHandle<()>,
 }
 
-impl<TmStmpTp: Ord + 'static, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
-    WkrHndl<TmStmpTp, EvntTp, WkrPpty>
+impl<
+    TimestampType: Ord + 'static,
+    EventType: EventTypeTrait + 'static,
+    WorkerProperty: WorkerPropertyTrait + 'static,
+> WorkerHandle<TimestampType, EventType, WorkerProperty>
 {
     fn new(
-        mut evnt_rcvr: broadcast::Receiver<Arc<BoxdEvnt<TmStmpTp, EvntTp>>>,
-        // wdgt_rcvr: mpsc::Receiver<BoxdWdgt<TmStmpTp, EvntTp, WkrPpty>>,
-        evnt_wkr_mod: WkrMod,
-        rt_evnt_sndr: mpsc::Sender<RtEvnt>,
-        rt_wdgt_sndr_pre: mpsc::Sender<BoxdWdgt<TmStmpTp, EvntTp, WkrPpty>>,
-        evnt_slctr: Box<dyn Fn(&EvntTp) -> bool + Send + Sync>,
+        mut event_receiver: broadcast::Receiver<Arc<BoxedEvent<TimestampType, EventType>>>,
+        event_worker_mode: WorkerMode,
+        runtime_event_sender: mpsc::Sender<RuntimeEvent>,
+        runtime_widget_sender_pre: mpsc::Sender<
+            BoxedWidget<TimestampType, EventType, WorkerProperty>,
+        >,
+        event_selector: Box<dyn Fn(&EventType) -> bool + Send + Sync>,
     ) -> Self {
-        let (wdgt_sndr, mut wdgt_rcvr) = mpsc::channel(BFFR_LEN);
+        let (widget_sender, mut widget_receiver) = mpsc::channel(BUFFER_LENGTH);
         Self {
-            wdgt_sndr,
-            prcs_hndl: tokio::spawn(async move {
-                let mut wdgt_heap = WdgtHeap::new();
-                while let Ok(evnt) = evnt_rcvr.recv().await {
-                    while !wdgt_rcvr.is_empty() {
-                        wdgt_heap.push(wdgt_rcvr.recv().await.unwrap());
+            widget_sender,
+            process_handle: tokio::spawn(async move {
+                let mut widget_heap = WidgetHeap::new();
+                while let Ok(event) = event_receiver.recv().await {
+                    while !widget_receiver.is_empty() {
+                        widget_heap.push(widget_receiver.recv().await.unwrap());
                     }
-                    if evnt_slctr(&evnt.as_ref().get_evnt_ppt()) {
-                        match evnt_wkr_mod {
-                            WkrMod::PrcsOnce => {
-                                if !wdgt_heap.is_empty()
-                                    && let Some(wdgt) = wdgt_heap.peek()
-                                    && wdgt.time_stamp() <= evnt.time_stamp()
+                    if event_selector(&event.as_ref().get_event_property()) {
+                        match event_worker_mode {
+                            WorkerMode::ProcessOnce => {
+                                if !widget_heap.is_empty()
+                                    && let Some(widget) = widget_heap.peek()
+                                    && widget.time_stamp() <= event.time_stamp()
                                 {
-                                    let mut wdgt = wdgt_heap.pop().unwrap();
-                                    let rt_stt = wdgt.judge(evnt.as_ref());
-                                    match rt_stt {
-                                        RtStt::Pending(rt_evnt) => {
-                                            let _ = rt_evnt_sndr.send(rt_evnt).await;
-                                            let _ = rt_wdgt_sndr_pre.send(wdgt).await;
+                                    let mut widget = widget_heap.pop().unwrap();
+                                    let runtime_state = widget.judge(event.as_ref());
+                                    match runtime_state {
+                                        RuntimeState::Pending(runtime_event) => {
+                                            let _ = runtime_event_sender.send(runtime_event).await;
+                                            let _ = runtime_widget_sender_pre.send(widget).await;
                                         }
-                                        RtStt::Ready(rt_evnt) => {
-                                            let _ = rt_evnt_sndr.send(rt_evnt).await;
+                                        RuntimeState::Ready(runtime_event) => {
+                                            let _ = runtime_event_sender.send(runtime_event).await;
                                         }
                                     }
                                 }
                             }
-                            WkrMod::PrcsMltiTimes => {
-                                while !wdgt_heap.is_empty() {
-                                    if let Some(wdgt) = wdgt_heap.peek()
-                                        && wdgt.time_stamp() <= evnt.time_stamp()
+                            WorkerMode::ProcessMultiTimes => {
+                                while !widget_heap.is_empty() {
+                                    if let Some(widget) = widget_heap.peek()
+                                        && widget.time_stamp() <= event.time_stamp()
                                     {
-                                        let mut wdgt = wdgt_heap.pop().unwrap();
-                                        let rt_stt = wdgt.judge(evnt.as_ref());
-                                        match rt_stt {
-                                            RtStt::Pending(rt_evnt) => {
-                                                let _ = rt_evnt_sndr.send(rt_evnt).await;
-                                                let _ = rt_wdgt_sndr_pre.send(wdgt).await;
+                                        let mut widget = widget_heap.pop().unwrap();
+                                        let runtime_state = widget.judge(event.as_ref());
+                                        match runtime_state {
+                                            RuntimeState::Pending(runtime_event) => {
+                                                let _ =
+                                                    runtime_event_sender.send(runtime_event).await;
+                                                let _ =
+                                                    runtime_widget_sender_pre.send(widget).await;
                                             }
-                                            RtStt::Ready(rt_evnt) => {
-                                                let _ = rt_evnt_sndr.send(rt_evnt).await;
+                                            RuntimeState::Ready(runtime_event) => {
+                                                let _ =
+                                                    runtime_event_sender.send(runtime_event).await;
                                             }
                                         }
                                     }
@@ -87,96 +104,108 @@ impl<TmStmpTp: Ord + 'static, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'st
 /// 负责协调事件分发、组件处理和结果返回，内部包含多个工作线程和路由机制
 ///
 /// # 泛型参数
-/// * `TmStmpTp` - 浮点类型，需实现Ord
-/// * `EvntTp` - 事件类型，需实现EvntTpT
-/// * `WkrPpty` - 工作属性类型，需实现WkrPptyT
-pub struct WkrPool<TmStmpTp: Ord, EvntTp: EvntTpT, WkrPpty: WkrPptyT> {
+/// * `TimestampType` - 浮点类型，需实现Ord
+/// * `EventType` - 事件类型，需实现EventTypeTrait
+/// * `WorkerProperty` - 工作属性类型，需实现WorkerPropertyTrait
+pub struct WorkerPool<
+    TimestampType: Ord,
+    EventType: EventTypeTrait,
+    WorkerProperty: WorkerPropertyTrait,
+> {
     // 优先队列线程
-    ipt_wkr_hndl: JoinHandle<()>,
-    _evnt_brdcst_sndr: broadcast::Sender<Arc<BoxdEvnt<TmStmpTp, EvntTp>>>,
+    input_worker_handle: JoinHandle<()>,
+    _event_broadcast_sender: broadcast::Sender<Arc<BoxedEvent<TimestampType, EventType>>>,
 
     // 哈希表路由线程
-    wdgt_rotr_hndl: JoinHandle<()>,
+    widget_router_handle: JoinHandle<()>,
 
     // 预留
-    _rt_wdgt_sndr_pre: mpsc::Sender<BoxdWdgt<TmStmpTp, EvntTp, WkrPpty>>,
+    _runtime_widget_sender_pre: mpsc::Sender<BoxedWidget<TimestampType, EventType, WorkerProperty>>,
 }
 
-impl<TmStmpTp: Ord + 'static, EvntTp: EvntTpT + 'static, WkrPpty: WkrPptyT + 'static>
-    WkrPool<TmStmpTp, EvntTp, WkrPpty>
+impl<
+    TimestampType: Ord + 'static,
+    EventType: EventTypeTrait + 'static,
+    WorkerProperty: WorkerPropertyTrait + 'static,
+> WorkerPool<TimestampType, EventType, WorkerProperty>
 {
     /// 构建工作池实例
     ///
     /// 创建事件通道、广播器和工作线程，返回发送器、接收器和工作池实例
     ///
     /// # 参数
-    /// * `wkr_ppty` - 工作属性列表，包含工作属性、工作模式和事件选择器
+    /// * `worker_property` - 工作属性列表，包含工作属性、工作模式和事件选择器
     ///
     /// # 返回值
-    /// 元组：(事件发送器, 运行时事件接收器, WkrPool实例)
+    /// 元组：(事件发送器, 运行时事件接收器, WorkerPool实例)
     pub fn build(
-        wkr_ppty: Vec<(WkrPpty, WkrMod, Box<dyn Fn(&EvntTp) -> bool + Send + Sync>)>,
-        wdgts: Vec<BoxdWdgt<TmStmpTp, EvntTp, WkrPpty>>,
+        worker_property: Vec<(
+            WorkerProperty,
+            WorkerMode,
+            Box<dyn Fn(&EventType) -> bool + Send + Sync>,
+        )>,
+        widgets: Vec<BoxedWidget<TimestampType, EventType, WorkerProperty>>,
     ) -> (
-        event_queue::Sndr<TmStmpTp, EvntTp>,
-        mpsc::Receiver<RtEvnt>,
+        event_queue::Sender<TimestampType, EventType>,
+        mpsc::Receiver<RuntimeEvent>,
         Self,
     ) {
-        let (evnt_pipe_sndr, evnt_pipe_rcvr) = event_queue::chnl();
-        let (evnt_tx, _) = broadcast::channel(BFFR_LEN);
-        let (rt_evnt_sndr, rt_evnt_rcvr) = mpsc::channel(BFFR_LEN);
-        let (rt_wdgt_sndr_pre, mut rt_wdgt_rcvr_pre) = mpsc::channel(BFFR_LEN);
-        let wkrs_tabl = wkr_ppty
+        let (event_pipe_sender, event_pipe_receiver) = event_queue::channel();
+        let (event_transmit, _) = broadcast::channel(BUFFER_LENGTH);
+        let (runtime_event_sender, runtime_event_receiver) = mpsc::channel(BUFFER_LENGTH);
+        let (runtime_widget_sender_pre, mut runtime_widget_receiver_pre) =
+            mpsc::channel(BUFFER_LENGTH);
+        let workers_table = worker_property
             .into_iter()
             .map(|e| {
                 (
                     e.0,
-                    WkrHndl::new(
-                        evnt_tx.subscribe(),
+                    WorkerHandle::new(
+                        event_transmit.subscribe(),
                         e.1,
-                        rt_evnt_sndr.clone(),
-                        rt_wdgt_sndr_pre.clone(),
+                        runtime_event_sender.clone(),
+                        runtime_widget_sender_pre.clone(),
                         e.2,
                     ),
                 )
             })
-            .collect::<HashMap<WkrPpty, WkrHndl<TmStmpTp, EvntTp, WkrPpty>>>();
+            .collect::<HashMap<WorkerProperty, WorkerHandle<TimestampType, EventType, WorkerProperty>>>();
 
-        let evnt_brdcst_sndr = evnt_tx.clone();
+        let event_broadcast_sender = event_transmit.clone();
 
-        let ipt_wkr_hndl = tokio::spawn(async move {
+        let input_worker_handle = tokio::spawn(async move {
             loop {
-                let evnt = evnt_pipe_rcvr.recv().await;
-                if evnt_tx.send(Arc::new(evnt)).is_err() {
+                let event = event_pipe_receiver.recv().await;
+                if event_transmit.send(Arc::new(event)).is_err() {
                     break;
                 }
             }
         });
 
-        let wdgt_rotr_hndl = tokio::spawn(async move {
+        let widget_router_handle = tokio::spawn(async move {
             loop {
-                let wdgt = rt_wdgt_rcvr_pre.recv().await;
-                if let Some(wdgt) = wdgt
-                    && let Some(wkr_hndl) = wkrs_tabl.get(&wdgt.get_wkr_ppt())
-                    && wkr_hndl.wdgt_sndr.send(wdgt).await.is_err()
+                let widget = runtime_widget_receiver_pre.recv().await;
+                if let Some(widget) = widget
+                    && let Some(worker_handle) = workers_table.get(&widget.get_worker_property())
+                    && worker_handle.widget_sender.send(widget).await.is_err()
                 {
                     break;
                 }
             }
         });
 
-        wdgts
+        widgets
             .into_iter()
-            .for_each(|e| rt_wdgt_sndr_pre.blocking_send(e).unwrap());
+            .for_each(|e| runtime_widget_sender_pre.blocking_send(e).unwrap());
 
         (
-            evnt_pipe_sndr,
-            rt_evnt_rcvr,
+            event_pipe_sender,
+            runtime_event_receiver,
             Self {
-                ipt_wkr_hndl,
-                wdgt_rotr_hndl,
-                _evnt_brdcst_sndr: evnt_brdcst_sndr,
-                _rt_wdgt_sndr_pre: rt_wdgt_sndr_pre,
+                input_worker_handle,
+                widget_router_handle,
+                _event_broadcast_sender: event_broadcast_sender,
+                _runtime_widget_sender_pre: runtime_widget_sender_pre,
             },
         )
     }
