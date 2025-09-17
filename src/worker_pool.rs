@@ -8,12 +8,12 @@ use tokio::{
 
 const BUFFER_LENGTH: usize = 10000;
 
-struct WorkerHandle<Event: EventTrait + Ord, Widget: WidgetTrait<Event = Event> + Ord> {
+struct WorkerHandle<Event: EventTrait, Widget: WidgetTrait<Event = Event>> {
     widget_sender: mpsc::Sender<Widget>,
     process_handle: JoinHandle<()>,
 }
 
-impl<Event: EventTrait + Ord + 'static, Widget: WidgetTrait<Event = Event> + Ord + 'static>
+impl<Event: EventTrait + 'static, Widget: WidgetTrait<Event = Event> + 'static>
     WorkerHandle<Event, Widget>
 {
     fn new(
@@ -94,7 +94,7 @@ impl<Event: EventTrait + Ord + 'static, Widget: WidgetTrait<Event = Event> + Ord
 /// * `TimestampType` - 需实现Ord
 /// * `EventType` - 事件类型，需实现EventTypeTrait
 /// * `WorkerProperty` - 工作属性类型，需实现WorkerPropertyTrait
-pub struct WorkerPool<Event: EventTrait + Ord, Widget: WidgetTrait<Event = Event> + Ord> {
+pub struct WorkerPool<Event: EventTrait, Widget: WidgetTrait<Event = Event>> {
     // 优先队列线程
     input_worker_handle: JoinHandle<()>,
     _event_broadcast_sender: broadcast::Sender<Arc<Event>>,
@@ -106,7 +106,7 @@ pub struct WorkerPool<Event: EventTrait + Ord, Widget: WidgetTrait<Event = Event
     _runtime_widget_sender_pre: mpsc::Sender<Widget>,
 }
 
-impl<Event: EventTrait + Ord + 'static, Widget: WidgetTrait<Event = Event> + Ord + 'static>
+impl<Event: EventTrait + 'static, Widget: WidgetTrait<Event = Event> + 'static>
     WorkerPool<Event, Widget>
 {
     /// 构建工作池实例

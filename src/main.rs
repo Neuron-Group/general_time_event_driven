@@ -60,26 +60,6 @@ impl EventTrait for TestEvent {
     }
 }
 
-impl PartialEq for TestEvent {
-    fn eq(&self, other: &Self) -> bool {
-        self.time_stamp() == other.time_stamp()
-    }
-}
-
-impl Eq for TestEvent {}
-
-impl PartialOrd for TestEvent {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
-    }
-}
-
-impl Ord for TestEvent {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.time_stamp().cmp(&other.time_stamp())
-    }
-}
-
 // 组件模块
 #[derive(Debug)]
 struct TestWidget {
@@ -119,26 +99,6 @@ impl WidgetTrait for TestWidget {
         } else {
             RuntimeState::Ready(RuntimeEvent::Missed)
         }
-    }
-}
-
-impl PartialEq for TestWidget {
-    fn eq(&self, other: &Self) -> bool {
-        self.time_stamp() == other.time_stamp()
-    }
-}
-
-impl Eq for TestWidget {}
-
-impl PartialOrd for TestWidget {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
-    }
-}
-
-impl Ord for TestWidget {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.time_stamp().cmp(&other.time_stamp())
     }
 }
 

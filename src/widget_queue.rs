@@ -1,15 +1,37 @@
 use crate::types::*;
-use std::{cmp::Reverse, collections::BinaryHeap};
+use std::collections::BinaryHeap;
 
-pub struct WidgetHeap<Widget: WidgetTrait>(BinaryHeap<Reverse<Widget>>);
+struct Data<Widget: WidgetTrait>(Widget);
 
-impl<Widget: WidgetTrait + Ord> WidgetHeap<Widget> {
+impl<Widget: WidgetTrait> PartialEq for Data<Widget> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.time_stamp() == other.0.time_stamp()
+    }
+}
+
+impl<Widget: WidgetTrait> Eq for Data<Widget> {}
+
+impl<Widget: WidgetTrait> PartialOrd for Data<Widget> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<Widget: WidgetTrait> Ord for Data<Widget> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other.0.time_stamp().cmp(&self.0.time_stamp())
+    }
+}
+
+pub struct WidgetHeap<Widget: WidgetTrait>(BinaryHeap<Data<Widget>>);
+
+impl<Widget: WidgetTrait> WidgetHeap<Widget> {
     pub fn new() -> Self {
         Self(BinaryHeap::new())
     }
 
     pub fn push(&mut self, widget: Widget) {
-        self.0.push(Reverse(widget));
+        self.0.push(Data(widget));
     }
 
     pub fn pop(&mut self) -> Option<Widget> {
@@ -25,7 +47,7 @@ impl<Widget: WidgetTrait + Ord> WidgetHeap<Widget> {
     }
 }
 
-impl<Widget: WidgetTrait + Ord> Default for WidgetHeap<Widget> {
+impl<Widget: WidgetTrait> Default for WidgetHeap<Widget> {
     fn default() -> Self {
         Self::new()
     }
