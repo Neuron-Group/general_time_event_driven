@@ -60,6 +60,26 @@ impl EventTrait for TestEvent {
     }
 }
 
+impl PartialEq for TestEvent {
+    fn eq(&self, other: &Self) -> bool {
+        self.time_stamp() == other.time_stamp()
+    }
+}
+
+impl Eq for TestEvent {}
+
+impl PartialOrd for TestEvent {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for TestEvent {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.time_stamp().cmp(&other.time_stamp())
+    }
+}
+
 // 组件模块
 #[derive(Debug)]
 struct TestWidget {
@@ -102,6 +122,26 @@ impl WidgetTrait for TestWidget {
     }
 }
 
+impl PartialEq for TestWidget {
+    fn eq(&self, other: &Self) -> bool {
+        self.time_stamp() == other.time_stamp()
+    }
+}
+
+impl Eq for TestWidget {}
+
+impl PartialOrd for TestWidget {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for TestWidget {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.time_stamp().cmp(&other.time_stamp())
+    }
+}
+
 fn test_judge_perfect() {
     let mut widget = TestWidget {
         id: 12345,
@@ -115,7 +155,30 @@ fn test_judge_perfect() {
     println!("{:#?}", widget.judge(&event));
 }
 
-async fn test_worker_pool_process() {}
+async fn test_worker_pool_process() {
+    let event_judger: Box<dyn Fn(&TestEventType) -> bool + Send + Sync> =
+        Box::new(|event_tp: &TestEventType| match event_tp {
+            TestEventType::Wkr0 => true,
+            TestEventType::All => false,
+        });
+    let wrk_ppty = vec![(TestWorkerType::Wkr0, WorkerMode::ProcessOnce, event_judger)];
+    let widget = TestWidget {
+        id: 12345,
+        time_stamp: 1000,
+        wkr_ppty: TestWorkerType::Wkr0,
+    };
+    let widget_list = vec![widget];
+    let (sndr, mut rcvr, hndl) = WorkerPool::build(wrk_ppty, widget_list).await;
+
+    let event = TestEvent {
+        time_stamp: 1024,
+        event_ppty: TestEventType::Wkr0,
+    };
+    sndr.send(event).await;
+    if let Some(rt_item) = rcvr.recv().await {
+        dbg!(rt_item);
+    }
+}
 
 #[tokio::main]
 async fn main() {
