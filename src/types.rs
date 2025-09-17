@@ -122,6 +122,11 @@ pub trait ReturnTypeTrait: Send + Sync {}
 /// Box智能指针包装的静态返回值类型
 pub type BoxedReturnType<ReturnType> = Box<ReturnType>;
 
+/// 事件判定返回类型
+///
+/// Pending意味着未完成的判定，组件不会被销毁
+/// Ready意味着已完成的判定，组件会被销毁
+#[derive(Debug)]
 pub enum RuntimeState<ReturnType: ReturnTypeTrait> {
     Pending(RuntimeEvent<ReturnType>),
     Ready(RuntimeEvent<ReturnType>),
@@ -130,9 +135,10 @@ pub enum RuntimeState<ReturnType: ReturnTypeTrait> {
 /// 运行时事件枚举
 ///
 /// 表示处理后的结果事件
+#[derive(Debug)]
 pub enum RuntimeEvent<ReturnType: ReturnTypeTrait> {
     /// 包含返回值的事件
-    Some(BoxedReturnType<ReturnType>),
+    Some(ReturnType),
     /// 错过处理的事件
     Missed,
 }
