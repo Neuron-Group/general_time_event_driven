@@ -162,3 +162,14 @@ pub enum WorkerMode {
     /// 多次处理模式
     ProcessMultiTimes,
 }
+
+/// 制造事件类型判断的闭包
+pub fn BuildBoxedEventSelector<
+    EventType: EventTypeTrait,
+    F: Fn(&EventType) -> bool + Send + Sync + 'static,
+>(
+    f: F,
+) -> Box<dyn Fn(&EventType) -> bool + Send + Sync> {
+    let event_selector: Box<dyn Fn(&EventType) -> bool + Send + Sync> = Box::new(f);
+    event_selector
+}

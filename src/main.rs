@@ -116,12 +116,11 @@ fn test_judge_perfect() {
 }
 
 async fn test_worker_pool_process() {
-    let event_judger: Box<dyn Fn(&TestEventType) -> bool + Send + Sync> =
-        Box::new(|event_tp: &TestEventType| match event_tp {
-            TestEventType::Wkr0 => true,
-            TestEventType::All => false,
-        });
-    let wrk_ppty = vec![(TestWorkerType::Wkr0, WorkerMode::ProcessOnce, event_judger)];
+    let event_select = BuildBoxedEventSelector(|event_tp: &TestEventType| match event_tp {
+        TestEventType::Wkr0 => true,
+        TestEventType::All => false,
+    });
+    let wrk_ppty = vec![(TestWorkerType::Wkr0, WorkerMode::ProcessOnce, event_select)];
     let widget = TestWidget {
         id: 12345,
         time_stamp: 1000,
