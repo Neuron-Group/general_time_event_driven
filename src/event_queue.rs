@@ -3,30 +3,23 @@ use async_priority_queue::PriorityQueue;
 use std::{cmp::Reverse, sync::Arc};
 // use tokio::sync::Mutex;
 
-struct EventPipe<TimestampType: Ord, EventType: EventTypeTrait>(
-    PriorityQueue<
-        Reverse<Box<dyn EventTrait<TimestampType = TimestampType, EventType = EventType>>>,
-    >,
-);
+struct EventPipe<Event: EventTrait + Ord>(PriorityQueue<Reverse<Event>>);
 
-impl<TimestampType: Ord, EventType: EventTypeTrait> EventPipe<TimestampType, EventType> {
+impl<Event: EventTrait + Ord> EventPipe<Event> {
     fn new() -> Self {
-        EventPipe::<TimestampType, EventType>(PriorityQueue::new())
+        EventPipe::<Event>(PriorityQueue::new())
     }
 }
 
-pub struct Sender<TimestampType: Ord, EventType: EventTypeTrait> {
-    socket: Arc<EventPipe<TimestampType, EventType>>,
+pub struct Sender<Event: EventTrait + Ord> {
+    socket: Arc<EventPipe<Event>>,
 }
 
-pub struct Receiver<TimestampType: Ord, EventType: EventTypeTrait> {
-    socket: Arc<EventPipe<TimestampType, EventType>>,
+pub struct Receiver<Event: EventTrait + Ord> {
+    socket: Arc<EventPipe<Event>>,
 }
 
-pub fn channel<TimestampType: Ord, EventType: EventTypeTrait>() -> (
-    Sender<TimestampType, EventType>,
-    Receiver<TimestampType, EventType>,
-) {
+pub fn channel<Event: EventTrait + Ord>() -> (Sender<Event>, Receiver<Event>) {
     let event_pipe = EventPipe::new();
     let arc_event_pipe = Arc::new(event_pipe);
     (
@@ -39,19 +32,14 @@ pub fn channel<TimestampType: Ord, EventType: EventTypeTrait>() -> (
     )
 }
 
-impl<TimestampType: Ord, EventType: EventTypeTrait> Sender<TimestampType, EventType> {
-    pub async fn send(
-        &self,
-        event: Box<dyn EventTrait<TimestampType = TimestampType, EventType = EventType>>,
-    ) {
+impl<Event: EventTrait + Ord> Sender<Event> {
+    pub async fn send(&self, event: Event) {
         self.socket.as_ref().0.push(Reverse(event));
     }
 }
 
-impl<TimestampType: Ord, EventType: EventTypeTrait> Receiver<TimestampType, EventType> {
-    pub async fn recv(
-        &self,
-    ) -> Box<dyn EventTrait<TimestampType = TimestampType, EventType = EventType>> {
+impl<Event: EventTrait + Ord> Receiver<Event> {
+    pub async fn recv(&self) -> Event {
         let Reverse(result) = self.socket.as_ref().0.pop().await;
         result
     }

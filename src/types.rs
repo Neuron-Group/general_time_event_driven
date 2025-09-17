@@ -1,46 +1,48 @@
-use std::{cmp::Ordering, hash::Hash};
+use std::hash::Hash;
 
-/// 时间戳事件基础Trait
+/// 组件Trait
 ///
-/// 所有事件和组件的基础Trait，提供时间戳获取功能
-pub trait TimeEventTrait: Send + Sync {
-    type TimestampType: Ord;
-    fn time_stamp(&self) -> Self::TimestampType;
+/// 定义组件的基本行为，包括工作属性获取和事件判断
+pub trait WidgetTrait: Send + Sync {
+    type Event: EventTrait;
+    fn get_worker_property(&self) -> <<Self as WidgetTrait>::Event as EventTrait>::WorkerProperty;
+    fn judge(
+        &mut self,
+        event: &Self::Event,
+    ) -> RuntimeState<<<Self as WidgetTrait>::Event as EventTrait>::ReturnType>;
+    fn time_stamp(&self) -> <Self::Event as EventTrait>::TimestampType;
 }
 
-// 为时间戳事件实现比较方法
-impl<TimestampType: Ord> PartialEq for dyn TimeEventTrait<TimestampType = TimestampType> {
+impl<Event: EventTrait> PartialEq for dyn WidgetTrait<Event = Event> {
     fn eq(&self, other: &Self) -> bool {
         self.time_stamp() == other.time_stamp()
     }
 }
 
-impl<TimestampType: Ord> Eq for dyn TimeEventTrait<TimestampType = TimestampType> {}
+impl<Event: EventTrait> Eq for dyn WidgetTrait<Event = Event> {}
 
-impl<TimestampType: Ord> PartialOrd for dyn TimeEventTrait<TimestampType = TimestampType> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+impl<Event: EventTrait> PartialOrd for dyn WidgetTrait<Event = Event> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<TimestampType: Ord> Ord for dyn TimeEventTrait<TimestampType = TimestampType> {
-    fn cmp(&self, other: &Self) -> Ordering {
+impl<Event: EventTrait> Ord for dyn WidgetTrait<Event = Event> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.time_stamp().cmp(&other.time_stamp())
     }
 }
 
-/// 组件Trait，继承自TimeEventTrait
+/// 事件Trait
 ///
-/// 定义组件的基本行为，包括工作属性获取和事件判断
-pub trait WidgetTrait: Send + Sync + TimeEventTrait {
+/// 定义事件的基本行为，提供事件属性获取功能
+pub trait EventTrait: Send + Sync {
+    type TimestampType: Ord;
     type EventType: EventTypeTrait;
     type WorkerProperty: WorkerPropertyTrait;
     type ReturnType: ReturnTypeTrait;
-    fn get_worker_property(&self) -> Self::WorkerProperty;
-    fn judge(
-        &mut self,
-        event: &BoxedEvent<Self::TimestampType, Self::EventType>,
-    ) -> RuntimeState<Self::ReturnType>;
+    fn get_event_property(&self) -> Self::EventType;
+    fn time_stamp(&self) -> Self::TimestampType;
 }
 
 impl<
@@ -49,7 +51,7 @@ impl<
     WorkerProperty: WorkerPropertyTrait,
     ReturnType: ReturnTypeTrait,
 > PartialEq
-    for dyn WidgetTrait<
+    for dyn EventTrait<
             TimestampType = TimestampType,
             EventType = EventType,
             WorkerProperty = WorkerProperty,
@@ -67,7 +69,7 @@ impl<
     WorkerProperty: WorkerPropertyTrait,
     ReturnType: ReturnTypeTrait,
 > Eq
-    for dyn WidgetTrait<
+    for dyn EventTrait<
             TimestampType = TimestampType,
             EventType = EventType,
             WorkerProperty = WorkerProperty,
@@ -82,14 +84,14 @@ impl<
     WorkerProperty: WorkerPropertyTrait,
     ReturnType: ReturnTypeTrait,
 > PartialOrd
-    for dyn WidgetTrait<
+    for dyn EventTrait<
             TimestampType = TimestampType,
             EventType = EventType,
             WorkerProperty = WorkerProperty,
             ReturnType = ReturnType,
         >
 {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
@@ -100,41 +102,14 @@ impl<
     WorkerProperty: WorkerPropertyTrait,
     ReturnType: ReturnTypeTrait,
 > Ord
-    for dyn WidgetTrait<
+    for dyn EventTrait<
             TimestampType = TimestampType,
             EventType = EventType,
             WorkerProperty = WorkerProperty,
             ReturnType = ReturnType,
         >
 {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.time_stamp().cmp(&other.time_stamp())
-    }
-}
-
-/// 事件Trait，继承自TimeEventTrait
-///
-/// 定义事件的基本行为，提供事件属性获取功能
-pub trait EventTrait: Send + Sync + TimeEventTrait {
-    type EventType: EventTypeTrait;
-    fn get_event_property(&self) -> Self::EventType;
-}
-impl<TimestampType: Ord, EventType: EventTypeTrait> PartialEq for dyn EventTrait<TimestampType = TimestampType, EventType = EventType> {
-    fn eq(&self, other: &Self) -> bool {
-        self.time_stamp() == other.time_stamp()
-    }
-}
-
-impl<TimestampType: Ord, EventType: EventTypeTrait> Eq for dyn EventTrait<TimestampType = TimestampType, EventType = EventType> {}
-
-impl<TimestampType: Ord, EventType: EventTypeTrait> PartialOrd for dyn EventTrait<TimestampType = TimestampType, EventType = EventType> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<TimestampType: Ord, EventType: EventTypeTrait> Ord for dyn EventTrait<TimestampType = TimestampType, EventType = EventType> {
-    fn cmp(&self, other: &Self) -> Ordering {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.time_stamp().cmp(&other.time_stamp())
     }
 }
@@ -145,7 +120,7 @@ impl<TimestampType: Ord, EventType: EventTypeTrait> Ord for dyn EventTrait<Times
 pub trait ReturnTypeTrait: Send + Sync {}
 
 /// Box智能指针包装的静态返回值类型
-pub type BoxedReturnType<ReturnType: ReturnTypeTrait> = Box<ReturnType>;
+pub type BoxedReturnType<ReturnType> = Box<ReturnType>;
 
 pub enum RuntimeState<ReturnType: ReturnTypeTrait> {
     Pending(RuntimeEvent<ReturnType>),
@@ -171,17 +146,6 @@ pub trait EventTypeTrait {}
 ///
 /// 工作属性的标记Trait，要求实现基本的哈希和比较功能
 pub trait WorkerPropertyTrait: Eq + Hash + Clone + Send + Sync {}
-
-pub type BoxedEvent<TimestampType, EventType> =
-    Box<dyn EventTrait<TimestampType = TimestampType, EventType = EventType>>;
-pub type BoxedWidget<TimestampType, EventType, WorkerProperty, ReturnType> = Box<
-    dyn WidgetTrait<
-            TimestampType = TimestampType,
-            EventType = EventType,
-            WorkerProperty = WorkerProperty,
-            ReturnType = ReturnType,
-        >,
->;
 
 /// 工作模式枚举
 ///

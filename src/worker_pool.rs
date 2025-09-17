@@ -12,36 +12,40 @@ struct WorkerHandle<
     TimestampType: Ord,
     EventType: EventTypeTrait,
     WorkerProperty: WorkerPropertyTrait,
-    ReturnType: ReturnTypeTrait,
+    Event: EventTrait<
+            TimestampType = TimestampType,
+            EventType = EventType,
+            WorkerProperty = WorkerProperty,
+        > + Ord,
+    Widget: WidgetTrait<Event = Event> + Ord,
 > {
-    widget_sender: mpsc::Sender<
-        Box<
-            dyn WidgetTrait<
-                    TimestampType = TimestampType,
-                    EventType = EventType,
-                    WorkerProperty = WorkerProperty,
-                    ReturnType = ReturnType,
-                >,
-        >,
-    >,
+    widget_sender: mpsc::Sender<Widget>,
     process_handle: JoinHandle<()>,
 }
 
 impl<
-    TimestampType: Ord + 'static,
+    TimestampType: Ord,
     EventType: EventTypeTrait + 'static,
-    WorkerProperty: WorkerPropertyTrait + 'static,
-    ReturnType: ReturnTypeTrait + 'static,
-> WorkerHandle<TimestampType, EventType, WorkerProperty, ReturnType>
+    WorkerProperty: WorkerPropertyTrait,
+    Event: EventTrait<
+            TimestampType = TimestampType,
+            EventType = EventType,
+            WorkerProperty = WorkerProperty,
+        > + Ord
+        + 'static,
+    Widget: WidgetTrait<Event = Event> + Ord + 'static,
+> WorkerHandle<TimestampType, EventType, WorkerProperty, Event, Widget>
 {
     fn new(
-        mut event_receiver: broadcast::Receiver<Arc<BoxedEvent<TimestampType, EventType>>>,
+        mut event_receiver: broadcast::Receiver<Arc<Widget::Event>>,
         event_worker_mode: WorkerMode,
-        runtime_event_sender: mpsc::Sender<RuntimeEvent<ReturnType>>,
-        runtime_widget_sender_pre: mpsc::Sender<
-            BoxedWidget<TimestampType, EventType, WorkerProperty, ReturnType>,
+        runtime_event_sender: mpsc::Sender<
+            RuntimeEvent<<<Widget as WidgetTrait>::Event as EventTrait>::ReturnType>,
         >,
-        event_selector: Box<dyn Fn(&EventType) -> bool + Send + Sync>,
+        runtime_widget_sender_pre: mpsc::Sender<Widget>,
+        event_selector: Box<
+            dyn Fn(&<Widget::Event as EventTrait>::EventType) -> bool + Send + Sync,
+        >,
     ) -> Self {
         let (widget_sender, mut widget_receiver) = mpsc::channel(BUFFER_LENGTH);
         Self {
@@ -114,26 +118,36 @@ pub struct WorkerPool<
     TimestampType: Ord,
     EventType: EventTypeTrait,
     WorkerProperty: WorkerPropertyTrait,
-    ReturnType: ReturnTypeTrait,
+    Event: EventTrait<
+            EventType = EventType,
+            TimestampType = TimestampType,
+            WorkerProperty = WorkerProperty,
+        > + Ord,
+    Widget: WidgetTrait<Event = Event> + Ord,
 > {
     // 优先队列线程
     input_worker_handle: JoinHandle<()>,
-    _event_broadcast_sender: broadcast::Sender<Arc<BoxedEvent<TimestampType, EventType>>>,
+    _event_broadcast_sender: broadcast::Sender<Arc<Event>>,
 
     // 哈希表路由线程
     widget_router_handle: JoinHandle<()>,
 
     // 预留
-    _runtime_widget_sender_pre:
-        mpsc::Sender<BoxedWidget<TimestampType, EventType, WorkerProperty, ReturnType>>,
+    _runtime_widget_sender_pre: mpsc::Sender<Widget>,
 }
 
 impl<
     TimestampType: Ord + 'static,
-    EventType: EventTypeTrait + 'static,
+    EventType: EventTypeTrait + 'static + 'static,
     WorkerProperty: WorkerPropertyTrait + 'static,
-    ReturnType: ReturnTypeTrait + 'static,
-> WorkerPool<TimestampType, EventType, WorkerProperty, ReturnType>
+    Event: EventTrait<
+            EventType = EventType,
+            TimestampType = TimestampType,
+            WorkerProperty = WorkerProperty,
+        > + Ord
+        + 'static,
+    Widget: WidgetTrait<Event = Event> + Ord + 'static,
+> WorkerPool<TimestampType, EventType, WorkerProperty, Event, Widget>
 {
     /// 构建工作池实例
     ///
@@ -150,10 +164,10 @@ impl<
             WorkerMode,
             Box<dyn Fn(&EventType) -> bool + Send + Sync>,
         )>,
-        widgets: Vec<BoxedWidget<TimestampType, EventType, WorkerProperty, ReturnType>>,
+        widgets: Vec<Widget>,
     ) -> (
-        event_queue::Sender<TimestampType, EventType>,
-        mpsc::Receiver<RuntimeEvent<ReturnType>>,
+        event_queue::Sender<Event>,
+        mpsc::Receiver<RuntimeEvent<Event::ReturnType>>,
         Self,
     ) {
         let (event_pipe_sender, event_pipe_receiver) = event_queue::channel();
@@ -177,7 +191,7 @@ impl<
             })
             .collect::<HashMap<
                 WorkerProperty,
-                WorkerHandle<TimestampType, EventType, WorkerProperty, ReturnType>,
+                WorkerHandle<TimestampType, EventType, WorkerProperty, Event, Widget>,
             >>();
 
         let event_broadcast_sender = event_transmit.clone();
