@@ -8,33 +8,13 @@ use tokio::{
 
 const BUFFER_LENGTH: usize = 10000;
 
-struct WorkerHandle<
-    TimestampType: Ord,
-    EventType: EventTypeTrait,
-    WorkerProperty: WorkerPropertyTrait,
-    Event: EventTrait<
-            TimestampType = TimestampType,
-            EventType = EventType,
-            WorkerProperty = WorkerProperty,
-        > + Ord,
-    Widget: WidgetTrait<Event = Event> + Ord,
-> {
+struct WorkerHandle<Event: EventTrait + Ord, Widget: WidgetTrait<Event = Event> + Ord> {
     widget_sender: mpsc::Sender<Widget>,
     process_handle: JoinHandle<()>,
 }
 
-impl<
-    TimestampType: Ord,
-    EventType: EventTypeTrait + 'static,
-    WorkerProperty: WorkerPropertyTrait,
-    Event: EventTrait<
-            TimestampType = TimestampType,
-            EventType = EventType,
-            WorkerProperty = WorkerProperty,
-        > + Ord
-        + 'static,
-    Widget: WidgetTrait<Event = Event> + Ord + 'static,
-> WorkerHandle<TimestampType, EventType, WorkerProperty, Event, Widget>
+impl<Event: EventTrait + Ord + 'static, Widget: WidgetTrait<Event = Event> + Ord + 'static>
+    WorkerHandle<Event, Widget>
 {
     fn new(
         mut event_receiver: broadcast::Receiver<Arc<Widget::Event>>,
@@ -114,17 +94,7 @@ impl<
 /// * `TimestampType` - 需实现Ord
 /// * `EventType` - 事件类型，需实现EventTypeTrait
 /// * `WorkerProperty` - 工作属性类型，需实现WorkerPropertyTrait
-pub struct WorkerPool<
-    TimestampType: Ord,
-    EventType: EventTypeTrait,
-    WorkerProperty: WorkerPropertyTrait,
-    Event: EventTrait<
-            EventType = EventType,
-            TimestampType = TimestampType,
-            WorkerProperty = WorkerProperty,
-        > + Ord,
-    Widget: WidgetTrait<Event = Event> + Ord,
-> {
+pub struct WorkerPool<Event: EventTrait + Ord, Widget: WidgetTrait<Event = Event> + Ord> {
     // 优先队列线程
     input_worker_handle: JoinHandle<()>,
     _event_broadcast_sender: broadcast::Sender<Arc<Event>>,
@@ -136,18 +106,8 @@ pub struct WorkerPool<
     _runtime_widget_sender_pre: mpsc::Sender<Widget>,
 }
 
-impl<
-    TimestampType: Ord + 'static,
-    EventType: EventTypeTrait + 'static + 'static,
-    WorkerProperty: WorkerPropertyTrait + 'static,
-    Event: EventTrait<
-            EventType = EventType,
-            TimestampType = TimestampType,
-            WorkerProperty = WorkerProperty,
-        > + Ord
-        + 'static,
-    Widget: WidgetTrait<Event = Event> + Ord + 'static,
-> WorkerPool<TimestampType, EventType, WorkerProperty, Event, Widget>
+impl<Event: EventTrait + Ord + 'static, Widget: WidgetTrait<Event = Event> + Ord + 'static>
+    WorkerPool<Event, Widget>
 {
     /// 构建工作池实例
     ///
@@ -160,9 +120,9 @@ impl<
     /// 元组：(事件发送器, 运行时事件接收器, WorkerPool实例)
     pub async fn build(
         worker_property: Vec<(
-            WorkerProperty,
+            Event::WorkerProperty,
             WorkerMode,
-            Box<dyn Fn(&EventType) -> bool + Send + Sync>,
+            Box<dyn Fn(&Event::EventType) -> bool + Send + Sync>,
         )>,
         widgets: Vec<Widget>,
     ) -> (
@@ -189,10 +149,7 @@ impl<
                     ),
                 )
             })
-            .collect::<HashMap<
-                WorkerProperty,
-                WorkerHandle<TimestampType, EventType, WorkerProperty, Event, Widget>,
-            >>();
+            .collect::<HashMap<Event::WorkerProperty, WorkerHandle<Event, Widget>>>();
 
         let event_broadcast_sender = event_transmit.clone();
 
